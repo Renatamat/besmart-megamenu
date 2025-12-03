@@ -7121,7 +7121,7 @@ class IqitMegaMenu extends Module implements WidgetInterface
         $query->from('category_product', 'cp');
         $query->innerJoin('product_shop', 'ps', 'ps.id_product = cp.id_product AND ps.id_shop = ' . (int) $idShop . ' AND ps.active = 1 AND ps.visibility IN ("both","catalog")');
         $query->innerJoin('feature_product', 'fp', 'fp.id_product = cp.id_product AND fp.id_feature = ' . (int) $idFeature);
-        $query->innerJoin('feature_value_lang', 'fvl', 'fvl.id_feature_value = fp.id_feature_value AND fvl.id_lang = ' . (int) $idLang . ' AND fvl.id_shop = ' . (int) $idShop);
+        $query->innerJoin('feature_value_lang', 'fvl', 'fvl.id_feature_value = fp.id_feature_value AND fvl.id_lang = ' . (int) $idLang);
         $query->where('cp.id_category = ' . (int) $idCategory);
         $query->groupBy('fp.id_feature_value, fvl.value');
         $query->orderBy('fvl.value ASC');
@@ -7138,10 +7138,11 @@ class IqitMegaMenu extends Module implements WidgetInterface
             $valueName = $value['value'];
             $count = (int) $value['product_count'];
             $filterQuery = sprintf('%s-%s', $featureName, $valueName);
+            $filtersParam = http_build_query(array('q' => $filterQuery));
 
             $filters[] = array(
                 'title' => sprintf('%s (%d)', $valueName, $count),
-                'href' => $this->context->link->getCategoryLink($idCategory, null, $idLang, array('q' => $filterQuery)),
+                'href' => $this->context->link->getCategoryLink($idCategory, null, $idLang, $filtersParam),
             );
         }
 
