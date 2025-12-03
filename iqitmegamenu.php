@@ -6991,6 +6991,12 @@ class IqitMegaMenu extends Module implements WidgetInterface
             $cat = new Category($category['id_category']);
 
             $link = $cat->getLink();
+            $isFeatureCategory = in_array((int) $category['id_category'], $this->getFeatureFilterCategories(), true);
+            $featureFilters = array();
+
+            if ($isFeatureCategory) {
+                $featureFilters = $this->getFeatureFiltersForCategory((int) $category['id_category'], 3);
+            }
 
             
 
@@ -7000,9 +7006,9 @@ class IqitMegaMenu extends Module implements WidgetInterface
                 $return_categories[$key]['title'] = $category['name'];
 
                 $return_categories[$key]['href'] = $link;
-                
+
                 $return_categories[$key]['prod_count'] = $this->countAvailableProductsInCategory((int) $category['id_category']);
-          
+
 
             } else {
 
@@ -7048,7 +7054,13 @@ class IqitMegaMenu extends Module implements WidgetInterface
 
 
 
-            if (isset($category['children']) && !empty($category['children'])) {
+            if (!empty($featureFilters)) {
+                if ($subcats) {
+                    $return_categories[$key]['children'] = $featureFilters;
+                } else {
+                    $return_categories['children'] = $featureFilters;
+                }
+            } elseif (isset($category['children']) && !empty($category['children'])) {
 
                 if ($subcats) {
 
@@ -7076,6 +7088,66 @@ class IqitMegaMenu extends Module implements WidgetInterface
 
     }
 
+    private function getFeatureFilterCategories()
+    {
+        return array(17, 19);
+    }
+
+    private function getFeatureFiltersForCategory($id_category, $id_feature)
+    {
+        $idLang = (int) $this->context->language->id;
+        $idShop = (int) $this->context->shop->id;
+        $idCategory = (int) $id_category;
+        $idFeature = (int) $id_feature;
+
+        if ($idCategory <= 0 || $idFeature <= 0) {
+            return array();
+        }
+
+        $feature = new Feature($idFeature, $idLang, $idShop);
+
+        if (!$feature->id) {
+            return array();
+        }
+
+        $featureName = is_array($feature->name) ? ($feature->name[$idLang] ?? reset($feature->name)) : $feature->name;
+
+        if (!$featureName) {
+            return array();
+        }
+
+        $query = new DbQuery();
+        $query->select('fp.id_feature_value, fvl.value, COUNT(DISTINCT cp.id_product) as product_count');
+        $query->from('category_product', 'cp');
+        $query->innerJoin('product_shop', 'ps', 'ps.id_product = cp.id_product AND ps.id_shop = ' . (int) $idShop . ' AND ps.active = 1 AND ps.visibility IN ("both","catalog")');
+        $query->innerJoin('feature_product', 'fp', 'fp.id_product = cp.id_product AND fp.id_feature = ' . (int) $idFeature);
+        $query->innerJoin('feature_value_lang', 'fvl', 'fvl.id_feature_value = fp.id_feature_value AND fvl.id_lang = ' . (int) $idLang);
+        $query->where('cp.id_category = ' . (int) $idCategory);
+        $query->groupBy('fp.id_feature_value, fvl.value');
+        $query->orderBy('fvl.value ASC');
+
+        $values = Db::getInstance(_PS_USE_SQL_SLAVE_)->executeS($query);
+
+        if (!$values) {
+            return array();
+        }
+
+        $filters = array();
+
+        foreach ($values as $value) {
+            $valueName = $value['value'];
+            $count = (int) $value['product_count'];
+            $filterQuery = sprintf('%s-%s', $featureName, $valueName);
+            $filtersParam = http_build_query(array('q' => $filterQuery));
+
+            $filters[] = array(
+                'title' => sprintf('%s (%d)', $valueName, $count),
+                'href' => $this->context->link->getCategoryLink($idCategory, null, $idLang, $filtersParam),
+            );
+        }
+
+        return $filters;
+    }
 
 
     public function convertBgRepeat($value)
